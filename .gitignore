@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.DS_Store
+.env
+tanktrack.db
+tanktrack.db-journal
+tanktrack.db-wal
+tanktrack.db-shm
+# old artifacts
+hormuz.db*
