@@ -1,4 +1,4 @@
-"""Live geofence validation against the Malacca Strait (currently ~150-200 transits/day).
+"""Live geofence validation against the Strait of Hormuz.
 
 Connects to AISstream.io with a Hormuz bounding box, runs incoming messages
 through the same is_inside() + state-machine logic the production pipeline
@@ -12,14 +12,12 @@ import asyncio
 import json
 import logging
 import sys
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import websockets
-from shapely.geometry import Point, Polygon
-
 from tanktrack.config import AISSTREAM_API_KEY
+from tanktrack.geofence import HORMUZ_BBOX, HORMUZ_POLYGON_LATLON, is_inside
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,40 +25,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("hormuz-test")
-
-# Hormuz polygon vertices — (lat, lon). Counter-clockwise.
-# Adjusted to include:
-#   - NW entrance from the Persian Gulf (Larak / Qeshm area)
-#   - NE corner running along the Iran coast
-#   - SE exit toward the Gulf of Oman (south of Musandam)
-#   - SW corner near the Strait's southern mouth
-HORMUZ_POLYGON_LATLON: list[tuple[float, float]] = [
-    (26.80, 55.80),
-    (27.00, 56.50),
-    (26.70, 56.95),
-    (26.15, 57.05),
-    (25.75, 56.60),
-    (25.85, 56.10),
-]
-
-# Bounding box for the AIS subscription filter: [SW, NE] as lat/lon pairs.
-# Slightly looser than the polygon so we don't miss messages near the edge.
-HORMUZ_BBOX = [
-    [25.60, 55.70],   # SW
-    [27.10, 57.20],   # NE
-]
-
-
-def polygon() -> Polygon:
-    # Shapely wants (x, y) = (lon, lat)
-    return Polygon([(lon, lat) for (lat, lon) in HORMUZ_POLYGON_LATLON])
-
-
-POLY = polygon()
-
-
-def is_inside(lat: float, lon: float) -> bool:
-    return POLY.contains(Point(lon, lat))
 
 
 # --- In-memory state machine (mirror of hormuz.vessel_state, no DB) ---------
@@ -106,6 +70,11 @@ async def run(duration_s: int = 60) -> None:
     sub = {
         "APIKey": AISSTREAM_API_KEY,
         "BoundingBoxes": [HORMUZ_BBOX],
+        "FilterMessageTypes": [
+            "PositionReport",
+            "ShipStaticData",
+            "StaticDataReport",
+        ],
     }
     state: dict[int, State] = {}
     counters = Counters()
